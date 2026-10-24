@@ -1,5 +1,9 @@
 # ⛏️ Minecraft Auto Cloud Backup (GitHub Actions → MEGA)
 
+> [!CAUTION]
+> **⚠️ USE AT YOUR OWN RISK:**
+> Running automated SFTP reads/syncs while a Minecraft server is actively running and saving chunks may cause file lock conflicts, chunk corruption, or break your server world. Always test in a staging/sandbox environment first and ensure you have separate independent backups. Use completely at your own discretion.
+
 An automated, 100% free cloud backup system for Minecraft servers. It automatically connects to your Minecraft server via **SFTP**, downloads your world, configs, and plugins, and synchronizes them directly into your **MEGA** cloud storage every hour.
 
 ---
