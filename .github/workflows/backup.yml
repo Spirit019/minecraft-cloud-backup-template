@@ -1,0 +1,60 @@
+name: Hourly Minecraft Cloud Backup to MEGA
+
+on:
+  schedule:
+    # Runs automatically every 1 hour (at minute 0)
+    - cron: '0 * * * *'
+  # Allows triggering manually anytime from the GitHub Actions tab
+  workflow_dispatch:
+
+concurrency:
+  group: mc-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies (sshpass, lftp, official rclone)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass lftp curl
+          # Install official rclone build with native MEGA support
+          sudo -v ; curl https://rclone.org/install.sh | sudo bash
+
+      - name: Setup rclone MEGA configuration
+        run: |
+          mkdir -p ~/.config/rclone
+          cat <<EOF > ~/.config/rclone/rclone.conf
+          [mega]
+          type = mega
+          user = ${{ secrets.MEGA_USER }}
+          pass = ${{ secrets.MEGA_PASS }}
+          EOF
+
+      - name: Download Minecraft Server Files via SFTP
+        run: |
+          mkdir -p /tmp/mc_current
+          echo "Connecting to SFTP and downloading server files..."
+          lftp -u "${{ secrets.SFTP_USER }}","${{ secrets.SFTP_PASS }}" sftp://${{ secrets.SFTP_HOST }}:${{ secrets.SFTP_PORT }} <<EOF
+          set sftp:auto-confirm yes
+          set net:timeout 20
+          set net:max-retries 3
+          mirror -c --parallel=4 --verbose \
+                 --exclude-glob logs/ \
+                 --exclude-glob .fabric/ \
+                 --exclude-glob cache/ \
+                 --exclude-glob crash-reports/ \
+                 --exclude-glob *.log.gz \
+                 / /tmp/mc_current
+          bye
+          EOF
+          echo "Download complete. Server data size:"
+          du -sh /tmp/mc_current
+
+      - name: Sync to MEGA (Mirror & Replace Old Files)
+        run: |
+          echo "Syncing /tmp/mc_current to MEGA:MinecraftBackup..."
+          # 'rclone sync' mirrors local files to cloud, updating changed files and cleaning up deleted ones
+          rclone sync /tmp/mc_current mega:MinecraftBackup --transfers=4 --progress
+          echo "Successfully mirrored Minecraft server to MEGA!"
